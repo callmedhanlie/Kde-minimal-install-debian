@@ -1,29 +1,30 @@
 #!/bin/bash
 
-# 1. Update and Base Dependencies
+# 1. Update and Install Essential Build Tools
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y xserver-xorg-core xserver-xorg-video-all xinit build-essential \
-git network-manager pipewire-audio-client-libraries curl wget
+git network-manager pipewire-audio-client-libraries curl wget \
+libpam0g-dev libxcb-util0-dev  # Critical for Ly
 
 # 2. Install Minimal KDE Plasma + Dark Mode Assets
-# We add breeze-gtk-theme so non-KDE apps (like Firefox) turn dark too
 sudo apt install -y --no-install-recommends \
-    plasma-desktop \
-    systemsettings \
-    konsole \
-    dolphin \
-    kwin-x11 \
-    plasma-nm \
-    breeze-gtk-theme \
-    kde-config-gtk-style
+    plasma-desktop systemsettings konsole dolphin kwin-x11 \
+    plasma-nm breeze-gtk-theme kde-config-gtk-style
 
-# 3. Install Ly (Ugly SDDM Alternative)
-if [ ! -d "ly" ]; then
-    git clone --recurse-submodules https://github.com/fairyglade/ly
-    cd ly && make && sudo make install
+# 3. Install/Build Ly (The Console Display Manager)
+echo "Attempting to build Ly..."
+git clone --recurse-submodules https://github.com/fairyglade/ly || true
+cd ly
+make
+if sudo make install; then
     sudo systemctl enable ly.service
-    cd ..
+    echo "Ly installed successfully."
+else
+    echo "Ly build failed. Installing LightDM as a backup..."
+    sudo apt install -y lightdm
+    sudo systemctl enable lightdm
 fi
+cd ..
 
 # 4. Install Latest Firefox (Mozilla Repo)
 sudo install -d -m 0755 /etc/apt/keyrings
@@ -34,15 +35,14 @@ Package: *
 Pin: origin packages.mozilla.org
 Pin-Priority: 1000
 ' | sudo tee /etc/apt/preferences.d/mozilla
-
 sudo apt update && sudo apt install -y firefox
 
-# 5. Apply Dark Mode (System-wide)
-# These commands apply the theme to the current user profile
+# 5. Force Dark Mode Configuration
+# Apply to KDE
 plasma-apply-lookandfeel org.kde.breezedark.desktop
 plasma-apply-colorscheme BreezeDark
 
-# 6. Set GTK apps (Firefox/GIMP/etc) to Dark Mode
+# Apply to GTK Apps (Firefox)
 mkdir -p ~/.config/gtk-3.0
 cat <<EOF > ~/.config/gtk-3.0/settings.ini
 [Settings]
@@ -50,12 +50,8 @@ gtk-theme-name=Breeze-Dark
 gtk-application-prefer-dark-theme=1
 EOF
 
-# 7. Final Cleanup
+# 6. Final Cleanup
 sudo apt autoremove -y
-
 echo "----------------------------------------------------"
-echo "SETUP COMPLETE!"
-echo "1. Reboot your system."
-echo "2. Log in through the Ly interface."
-echo "3. Everything should be in Dark Mode."
+echo "DONE! Please reboot now."
 echo "----------------------------------------------------"
